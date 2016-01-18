@@ -50,33 +50,37 @@ final class ParserInvoker {
      * @throws MojoExecutionException on any reflection error during invocation
      */
     Result invoke() throws MojoExecutionException {
-        final String fileToTest =parser.getSourceName();
+        final String fileToTest = parser.getSourceName();
+
         try {
-            final Method start = parser.getClass().getMethod(methodName);
+            final Method start = parser.getClass().getDeclaredMethod(methodName);
             start.invoke(parser);
             return Result.passed(fileToTest);
-        } catch (final ParseCancellationException ex) {
-            log.error(ex.getMessage(), ex);
-            return Result.failed(fileToTest, ex);
         } catch (final IllegalAccessException ex) {
             throw new MojoExecutionException(
                 String.format("Can't access method '%s' on parser (%s)!",
                     methodName, ex.getMessage()),
                 ex);
         } catch (final InvocationTargetException ex) {
-            throw new MojoExecutionException(
-                String.format("Can't invoke method '%s' on target parser (%s)!",
-                    methodName, ex.getMessage()),
-                ex);
+            if (ex.getTargetException() instanceof ParseCancellationException) {
+                final ParseCancellationException target = (ParseCancellationException) ex.getTargetException();
+                log.error(target.getMessage(), target);
+                return Result.failed(fileToTest, target);
+            } else {
+                throw new MojoExecutionException(
+                    String.format("Can't invoke method '%s' on target parser (%s)!",
+                        methodName, ex.getMessage()),
+                    ex);
+            }
         } catch (final NoSuchMethodException ex) {
             throw new MojoExecutionException(
-                String.format("Given parser has not method with name '%s' (%s)",
+                String.format("Given parser has no method with name '%s' (%s)",
                     methodName, ex.getMessage()),
                 ex);
         } catch (final SecurityException ex) {
             throw new MojoExecutionException(
-                String.format("can't invoke method '%s; due to security restricitons  (%s)!",
-                    methodName,ex.getMessage()),
+                String.format("can't invoke method '%s' due to security restricitons (%s)!",
+                    methodName, ex.getMessage()),
                 ex);
         }
     }
